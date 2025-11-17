@@ -1,0 +1,221 @@
+<text_never_used_51bce0c785ca2f68081bfa7d91973934>name: Pull Request Automation
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  code-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run ESLint
+        id: eslint
+        run: npm run lint 2>&1 | tee eslint_output.txt
+        continue-on-error: true
+
+      - name: Run Prettier Check
+        id: prettier
+        run: npx prettier --check . 2>&1 | tee prettier_output.txt
+        continue-on-error: true
+
+      - name: Post Code Quality Report
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const eslintOutput = fs.readFileSync('eslint_output.txt', 'utf8');
+            const prettierOutput = fs.readFileSync('prettier_output.txt', 'utf8');
+            
+            const commentBody = `## Code Quality Report
+            ### ESLint Results
+            \`\`\`
+            ${eslintOutput}
+            \`\`\`
+            
+            ### Prettier Formatting Results
+            \`\`\`
+            ${prettierOutput}
+            \`\`\`
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: commentBody
+            });
+
+  testing-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run Tests with Coverage
+        id: tests
+        run: npm test -- --coverage 2>&1 | tee test_coverage_output.txt
+
+      - name: Upload Coverage Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-coverage-report
+          path: coverage/
+
+      - name: Post Test Coverage Report
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const testCoverageOutput = fs.readFileSync('test_coverage_output.txt', 'utf8');
+            
+            const commentBody = `## Test Coverage Report
+            \`\`\`
+            ${testCoverageOutput}
+            \`\`\`
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: commentBody
+            });
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run Dependency Vulnerability Check
+        id: npm-audit
+        run: npm audit 2>&1 | tee npm_audit_output.txt
+        continue-on-error: true
+
+      - name: Scan for Secrets in Code
+        id: secret-scan
+        run: npx gitleaks detect --source . 2>&1 | tee secret_scan_output.txt
+        continue-on-error: true
+
+      - name: Post Security Scan Report
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const npmAuditOutput = fs.readFileSync('npm_audit_output.txt', 'utf8');
+            const secretScanOutput = fs.readFileSync('secret_scan_output.txt', 'utf8');
+            
+            const commentBody = `## Security Scan Report
+            ### Dependencies Vulnerabilities
+            \`\`\`
+            ${npmAuditOutput}
+            \`\`\`
+            
+            ### Secrets Scan Results
+            \`\`\`
+            ${secretScanOutput}
+            \`\`\`
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: commentBody
+            });
+
+  build-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Application
+        id: build
+        run: npm run build 2>&1 | tee build_output.txt
+
+      - name: Validate Build Output
+        id: validate-build
+        run: |
+          echo "Checking build directory existence..."
+          if [ -d "dist" ]; then
+            echo "✅ Build directory 'dist' exists"
+            echo "Listing build contents:"
+            ls -la dist/
+          else
+            echo "❌ Build directory 'dist' not found"
+            exit 1
+          fi
+        2>&1 | tee validate_build_output.txt
+        continue-on-error: true
+
+      - name: Upload Deployment Preview Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+
+      - name: Post Build Validation Status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const buildOutput = fs.readFileSync('build_output.txt', 'utf8');
+            const validateOutput = fs.readFileSync('validate_build_output.txt', 'utf8');
+            
+            const commentBody = `## Build Validation
+            ### Build Output
+            \`\`\`
+            ${buildOutput}
+            \`\`\`
+            
+            ### Build Validation Results
+            \`\`\`
+            ${validateOutput}
+            \`\`\`
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: commentBody
+            });</text_never_used_51bce0c785ca2f68081bfa7d91973934>
